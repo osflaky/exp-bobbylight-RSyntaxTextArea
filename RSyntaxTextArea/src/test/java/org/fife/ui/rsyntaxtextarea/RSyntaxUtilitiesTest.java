@@ -1,0 +1,539 @@
+/*
+ * This library is distributed under a modified BSD license.  See the included
+ * LICENSE file for details.
+ */
+package org.fife.ui.rsyntaxtextarea;
+
+import org.fife.ui.rtextarea.DocumentRange;
+import org.fife.ui.rtextarea.RTextScrollPane;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
+
+import javax.swing.*;
+import javax.swing.text.*;
+import java.awt.*;
+import java.awt.Point;
+
+
+/**
+ * Unit tests for the {@link RSyntaxUtilities} class.
+ *
+ * @author Robert Futrell
+ * @version 1.0
+ */
+class RSyntaxUtilitiesTest extends AbstractRSyntaxTextAreaTest {
+
+
+	@Test
+	void testGetFoldedLineBottomColor_gutterFound() {
+		RSyntaxTextArea textArea = createTextArea();
+		RTextScrollPane sp = new RTextScrollPane(textArea);
+		Assertions.assertEquals(sp.getGutter().getFoldIndicatorForeground(),
+			RSyntaxUtilities.getFoldedLineBottomColor(textArea));
+	}
+
+
+	@Test
+	void testGetFoldedLineBottomColor_noGutter() {
+		RSyntaxTextArea textArea = createTextArea();
+		Assertions.assertEquals(Color.GRAY, RSyntaxUtilities.getFoldedLineBottomColor(textArea));
+	}
+
+
+	@Test
+	void testGetGutter_found() {
+		RSyntaxTextArea textArea = createTextArea();
+		RTextScrollPane sp = new RTextScrollPane(textArea);
+		Assertions.assertEquals(sp.getGutter(), RSyntaxUtilities.getGutter(textArea));
+	}
+
+
+	@Test
+	void testGetGutter_notFound() {
+		RSyntaxTextArea textArea = createTextArea();
+		Assertions.assertNull(RSyntaxUtilities.getGutter(textArea));
+	}
+
+
+	@Test
+	void testGetHyperlinkForeground() {
+		Assertions.assertNotNull(RSyntaxUtilities.getHyperlinkForeground());
+	}
+
+
+	@Test
+	void testGetLeadingWhitespace_string_none() {
+		Assertions.assertEquals("", RSyntaxUtilities.getLeadingWhitespace("none"));
+	}
+
+
+	@Test
+	void testGetLeadingWhitespace_string_spaces() {
+		Assertions.assertEquals("  ", RSyntaxUtilities.getLeadingWhitespace("  two"));
+	}
+
+
+	@Test
+	void testGetLeadingWhitespace_string_tabs() {
+		Assertions.assertEquals("\t\t", RSyntaxUtilities.getLeadingWhitespace("\t\ttwo"));
+	}
+
+
+	@Test
+	void testGetLeadingWhitespace_string_spacesAndTabs() {
+		Assertions.assertEquals(" \t \t", RSyntaxUtilities.getLeadingWhitespace(" \t \tfour"));
+	}
+
+
+	@Test
+	void testGetLeadingWhitespace_document_spacesAndTabs() throws BadLocationException {
+		RSyntaxTextArea textArea = createTextArea(" \t \tfour");
+		Document doc = textArea.getDocument();
+		Assertions.assertEquals(" \t \t", RSyntaxUtilities.getLeadingWhitespace(doc, 0));
+	}
+
+
+	@Test
+	void testGetNextImportantToken_skipWhitespaceOnSameLine() {
+
+		RSyntaxTextArea textArea = createTextArea("line one\nline two\n line 3");
+		Token t = textArea.getTokenListForLine(0);
+
+		// First token is important
+		char[] chars = "line".toCharArray();
+		Token expected = new TokenImpl(chars, 0, chars.length - 1, 0, TokenTypes.IDENTIFIER, 0);
+		Token actual = RSyntaxUtilities.getNextImportantToken(t, textArea, 0);
+		Assertions.assertEquals(expected, actual);
+
+		// Next token is space, so next "important" token is the following one
+		t = t.getNextToken(); // space character
+		chars = "one".toCharArray();
+		expected = new TokenImpl(chars, 0, chars.length - 1, 5, TokenTypes.IDENTIFIER, 0);
+		actual = RSyntaxUtilities.getNextImportantToken(t, textArea, 0);
+		Assertions.assertEquals(expected, actual);
+	}
+
+
+	@Test
+	void testGetNextImportantToken_goToNextLine() {
+
+		RSyntaxTextArea textArea = createTextArea("line one   \nline two\n line 3");
+		Token t = textArea.getTokenListForLine(0);
+
+		// Get token "   "
+		t = t.getNextToken().getNextToken().getNextToken();
+
+		// Next token is "important", but on the next line
+		char[] chars = "line".toCharArray();
+		Token expected = new TokenImpl(chars, 0, chars.length - 1, 12, TokenTypes.IDENTIFIER, 0);
+		Token actual = RSyntaxUtilities.getNextImportantToken(t, textArea, 0);
+		Assertions.assertEquals(expected, actual);
+	}
+
+
+	@Test
+	void testGetNextVisualPositionFrom_right_sameLine() throws BadLocationException {
+
+		RSyntaxTextArea textArea = createTextArea();
+		Rectangle bounds = textArea.getBounds();
+		View view = textArea.getUI().getRootView(textArea).getView(0);
+
+		int nextPos = RSyntaxUtilities.getNextVisualPositionFrom(0, Position.Bias.Forward,
+			bounds, SwingConstants.EAST, new Position.Bias[1], view);
+		Assertions.assertEquals(1, nextPos);
+	}
+
+
+	@Test
+	void testGetNextVisualPositionFrom_right_nextLine() throws BadLocationException {
+
+		RSyntaxTextArea textArea = createTextArea();
+		Rectangle bounds = textArea.getBounds();
+		View view = textArea.getUI().getRootView(textArea).getView(0);
+
+		int firstLineEnd = textArea.getLineEndOffset(0) - 1;
+
+		int nextPos = RSyntaxUtilities.getNextVisualPositionFrom(firstLineEnd, Position.Bias.Forward,
+			bounds, SwingConstants.EAST, new Position.Bias[1], view);
+		Assertions.assertEquals(firstLineEnd + 1, nextPos);
+	}
+
+
+	@Test
+	void testGetNextVisualPositionFrom_left_sameLine() throws BadLocationException {
+
+		RSyntaxTextArea textArea = createTextArea();
+		Rectangle bounds = textArea.getBounds();
+		View view = textArea.getUI().getRootView(textArea).getView(0);
+
+		int nextPos = RSyntaxUtilities.getNextVisualPositionFrom(1, Position.Bias.Forward,
+			bounds, SwingConstants.WEST, new Position.Bias[1], view);
+		Assertions.assertEquals(0, nextPos);
+	}
+
+
+	@Test
+	void testGetNextVisualPositionFrom_left_prevLine() throws BadLocationException {
+
+		RSyntaxTextArea textArea = createTextArea();
+		Rectangle bounds = textArea.getBounds();
+		View view = textArea.getUI().getRootView(textArea).getView(0);
+
+		int secondLineStart = textArea.getLineStartOffset(1);
+
+		int nextPos = RSyntaxUtilities.getNextVisualPositionFrom(secondLineStart, Position.Bias.Forward,
+			bounds, SwingConstants.WEST, new Position.Bias[1], view);
+		Assertions.assertEquals(secondLineStart - 1, nextPos);
+	}
+
+
+	@Test
+	void testGetNextVisualPositionFrom_north() throws BadLocationException {
+
+		RSyntaxTextArea textArea = createTextArea();
+		Rectangle bounds = textArea.getBounds();
+		View view = textArea.getUI().getRootView(textArea).getView(0);
+
+		int secondLineStart = textArea.getLineStartOffset(1);
+
+		int nextPos = RSyntaxUtilities.getNextVisualPositionFrom(secondLineStart, Position.Bias.Forward,
+			bounds, SwingConstants.NORTH, new Position.Bias[1], view);
+		Assertions.assertEquals(0, nextPos);
+	}
+
+
+	@Test
+	void testGetNextVisualPositionFrom_south() throws BadLocationException {
+
+		RSyntaxTextArea textArea = createTextArea();
+		Rectangle bounds = textArea.getBounds();
+		View view = textArea.getUI().getRootView(textArea).getView(0);
+
+		int secondLineStart = textArea.getLineStartOffset(1);
+
+		int nextPos = RSyntaxUtilities.getNextVisualPositionFrom(0, Position.Bias.Forward,
+			bounds, SwingConstants.SOUTH, new Position.Bias[1], view);
+		Assertions.assertEquals(secondLineStart, nextPos);
+	}
+
+
+	@Test
+	void testGetPreviousImportantToken_error_negativeLine() {
+		RSyntaxTextArea textArea = createTextArea("line one");
+		RSyntaxDocument doc = (RSyntaxDocument)textArea.getDocument();
+		Assertions.assertNull(RSyntaxUtilities.getPreviousImportantToken(doc, -1));
+	}
+
+
+	@Test
+	void testGetPreviousImportantToken_happyPath() {
+
+		RSyntaxTextArea textArea = createTextArea(SyntaxConstants.SYNTAX_STYLE_C, "foo // comment");
+		RSyntaxDocument doc = (RSyntaxDocument)textArea.getDocument();
+
+		Token actual = RSyntaxUtilities.getPreviousImportantToken(doc, 0);
+		Assertions.assertTrue(actual != null && actual.is(TokenTypes.IDENTIFIER, "foo"));
+	}
+
+
+	@Test
+	void testGetPreviousImportantToken_goesToPriorLine() {
+
+		RSyntaxTextArea textArea = createTextArea(SyntaxConstants.SYNTAX_STYLE_C, "foo // comment\n");
+		RSyntaxDocument doc = (RSyntaxDocument)textArea.getDocument();
+
+		Token actual = RSyntaxUtilities.getPreviousImportantToken(doc, 1);
+		Assertions.assertTrue(actual != null && actual.is(TokenTypes.IDENTIFIER, "foo"));
+	}
+
+
+	@Test
+	void testGetPreviousImportantTokenFromOffs_goesToPriorLine() {
+
+		RSyntaxTextArea textArea = createTextArea("line one\n   ");
+		RSyntaxDocument doc = (RSyntaxDocument)textArea.getDocument();
+
+		Token actual = RSyntaxUtilities.getPreviousImportantTokenFromOffs(doc, doc.getLength());
+		Assertions.assertTrue(actual != null && actual.is(TokenTypes.IDENTIFIER, "one"));
+	}
+
+
+	@Test
+	void testGetPreviousImportantTokenFromOffs_skipWhitespaceOnSameLine() {
+
+		RSyntaxTextArea textArea = createTextArea("line one");
+		RSyntaxDocument doc = (RSyntaxDocument)textArea.getDocument();
+
+		// Previous token is space, so previous "important" token is "line"
+		char[] chars = "line".toCharArray();
+		Token expected = new TokenImpl(chars, 0, chars.length - 1, 0, TokenTypes.IDENTIFIER, 0);
+		Token actual = RSyntaxUtilities.getPreviousImportantTokenFromOffs(doc, 5);
+		Assertions.assertEquals(expected, actual);
+	}
+
+
+	@Test
+	void testGetTokenAtOffset_textArea() {
+
+		RSyntaxTextArea textArea = createTextArea("line one");
+
+		char[] chars = "line".toCharArray();
+		Token expected = new TokenImpl(chars, 0, chars.length - 1, 0, TokenTypes.IDENTIFIER, 0);
+		Assertions.assertEquals(expected, RSyntaxUtilities.getTokenAtOffset(textArea, 0));
+		Assertions.assertEquals(expected, RSyntaxUtilities.getTokenAtOffset(textArea, 1));
+		Assertions.assertEquals(expected, RSyntaxUtilities.getTokenAtOffset(textArea, 2));
+		Assertions.assertEquals(expected, RSyntaxUtilities.getTokenAtOffset(textArea, 3));
+
+		chars = " ".toCharArray();
+		expected = new TokenImpl(chars, 0, 0, 4, TokenTypes.WHITESPACE, 0);
+		Assertions.assertEquals(expected, RSyntaxUtilities.getTokenAtOffset(textArea, 4));
+	}
+
+
+	@Test
+	void testGetTokenAtOffset_document() {
+
+		RSyntaxTextArea textArea = createTextArea("line one");
+		RSyntaxDocument document = (RSyntaxDocument)textArea.getDocument();
+
+		char[] chars = "line".toCharArray();
+		Token expected = new TokenImpl(chars, 0, chars.length - 1, 0, TokenTypes.IDENTIFIER, 0);
+		Assertions.assertEquals(expected, RSyntaxUtilities.getTokenAtOffset(document, 0));
+		Assertions.assertEquals(expected, RSyntaxUtilities.getTokenAtOffset(document, 1));
+		Assertions.assertEquals(expected, RSyntaxUtilities.getTokenAtOffset(document, 2));
+		Assertions.assertEquals(expected, RSyntaxUtilities.getTokenAtOffset(document, 3));
+
+		chars = " ".toCharArray();
+		expected = new TokenImpl(chars, 0, 0, 4, TokenTypes.WHITESPACE, 0);
+		Assertions.assertEquals(expected, RSyntaxUtilities.getTokenAtOffset(document, 4));
+	}
+
+
+	@Test
+	void testGetTokenAtOffset_tokenList() {
+
+		RSyntaxTextArea textArea = createTextArea("line one");
+		Token t = textArea.getTokenListForLine(0);
+
+		char[] chars = "line".toCharArray();
+		Token expected = new TokenImpl(chars, 0, chars.length - 1, 0, TokenTypes.IDENTIFIER, 0);
+		Assertions.assertEquals(expected, RSyntaxUtilities.getTokenAtOffset(t, 0));
+		Assertions.assertEquals(expected, RSyntaxUtilities.getTokenAtOffset(t, 1));
+		Assertions.assertEquals(expected, RSyntaxUtilities.getTokenAtOffset(t, 2));
+		Assertions.assertEquals(expected, RSyntaxUtilities.getTokenAtOffset(t, 3));
+
+		chars = " ".toCharArray();
+		expected = new TokenImpl(chars, 0, 0, 4, TokenTypes.WHITESPACE, 0);
+		Assertions.assertEquals(expected, RSyntaxUtilities.getTokenAtOffset(t, 4));
+	}
+
+
+	@Test
+	void testGetTokenAtOffsetOrLastTokenIfEndOfLine_tokenListArg_invalidOffset() {
+
+		RSyntaxTextArea textArea = createTextArea("line one");
+		Token t = textArea.getTokenListForLine(0);
+
+		Assertions.assertNull(
+			RSyntaxUtilities.getTokenAtOffsetOrLastTokenIfEndOfLine(t, 100));
+	}
+
+
+	@Test
+	void testPossiblyRepaintGutter() {
+		RSyntaxTextArea textArea = createTextArea();
+		new RTextScrollPane(textArea);
+		RSyntaxUtilities.possiblyRepaintGutter(textArea);
+	}
+
+
+	@Test
+	void testSelectAndPossiblyCenter() {
+
+		RSyntaxTextArea textArea = createTextArea();
+		for (int i = 0; i < 200; i++) {
+			textArea.append("line " + i + "\n");
+		}
+
+		int length = textArea.getDocument().getLength();
+		DocumentRange range = new DocumentRange(length / 2, length / 2 + 5);
+		RSyntaxUtilities.selectAndPossiblyCenter(textArea, range, true);
+
+		Assertions.assertEquals(length / 2, textArea.getSelectionStart());
+		Assertions.assertEquals(length / 2 + 5, textArea.getSelectionEnd());
+	}
+
+
+	@Test
+	void testToLowerCase_upperCaseUsAsciiLetters() {
+		for (int ch = 'A'; ch <= 'Z'; ch++) {
+			Assertions.assertEquals(ch | 0x20, RSyntaxUtilities.toLowerCase((char)ch));
+		}
+	}
+
+
+	@Test
+	void testToLowerCase_nonUpperCaseUsAsciiLetters() {
+		Assertions.assertEquals('9', RSyntaxUtilities.toLowerCase('9'));
+	}
+
+
+	@Test
+	void testWildcardToPattern() {
+
+		Assertions.assertEquals(".*",
+			RSyntaxUtilities.wildcardToPattern("*", false, false).pattern());
+
+		Assertions.assertEquals(".foo.",
+			RSyntaxUtilities.wildcardToPattern("?foo?", false, false).pattern());
+
+		Assertions.assertEquals("foobar\\.\\$tmp",
+			RSyntaxUtilities.wildcardToPattern("foobar.$tmp", false, false).pattern());
+	}
+
+
+	@Test
+	void testWildcardToPattern_startCaret_noEscape() {
+		Assertions.assertEquals("^foo",
+			RSyntaxUtilities.wildcardToPattern("^foo", false, false).pattern());
+	}
+
+
+	@Test
+	void testWildcardToPattern_startCaret_escape() {
+		Assertions.assertEquals("\\^foo",
+			RSyntaxUtilities.wildcardToPattern("^foo", false, true).pattern());
+	}
+
+
+	@Test
+	void testWildcardToPattern_nonStartCaret() {
+		Assertions.assertEquals("foo\\^bar",
+			RSyntaxUtilities.wildcardToPattern("foo^bar", false, false).pattern());
+	}
+
+
+	@Test
+	void testGetMatchingBracketPosition_forwardMatch() {
+		RSyntaxTextArea textArea = createTextArea(SyntaxConstants.SYNTAX_STYLE_JAVA, "(hello)");
+		textArea.setCaretPosition(1); // caret just after '(' at offset 0
+		Point result = RSyntaxUtilities.getMatchingBracketPosition(textArea, null);
+		Assertions.assertEquals(0, result.x); // '(' at offset 0
+		Assertions.assertEquals(6, result.y); // ')' at offset 6
+	}
+
+
+	@Test
+	void testGetMatchingBracketPosition_backwardMatch() {
+		RSyntaxTextArea textArea = createTextArea(SyntaxConstants.SYNTAX_STYLE_JAVA, "(hello)");
+		textArea.setCaretPosition(7); // caret just after ')' at offset 6
+		Point result = RSyntaxUtilities.getMatchingBracketPosition(textArea, null);
+		Assertions.assertEquals(6, result.x); // ')' at offset 6
+		Assertions.assertEquals(0, result.y); // '(' at offset 0
+	}
+
+
+	@Test
+	void testGetMatchingBracketPosition_noMatch_notOnBracket() {
+		RSyntaxTextArea textArea = createTextArea(SyntaxConstants.SYNTAX_STYLE_JAVA, "hello");
+		textArea.setCaretPosition(3); // caret in the middle of an identifier
+		Point result = RSyntaxUtilities.getMatchingBracketPosition(textArea, null);
+		Assertions.assertEquals(-1, result.x);
+		Assertions.assertEquals(-1, result.y);
+	}
+
+
+	@Test
+	void testGetMatchingBracketPosition_customBrackets_forwardMatch() {
+		RSyntaxTextArea textArea = new RSyntaxTextArea("«hello»") {
+			@Override
+			public Graphics getGraphics() {
+				return createTestGraphics();
+			}
+		};
+		textArea.setBounds(0, 0, 800, 800);
+		RSyntaxDocument doc = (RSyntaxDocument)textArea.getDocument();
+		doc.setSyntaxStyle(new CustomBracketTokenMaker());
+
+		textArea.setCaretPosition(1); // caret just after '«' at offset 0
+		Point result = RSyntaxUtilities.getMatchingBracketPosition(textArea, null);
+		Assertions.assertEquals(0, result.x); // '«' at offset 0
+		Assertions.assertEquals(6, result.y); // '»' at offset 6
+	}
+
+
+	@Test
+	void testGetMatchingBracketPosition_customBrackets_backwardMatch() {
+		RSyntaxTextArea textArea = new RSyntaxTextArea("«hello»") {
+			@Override
+			public Graphics getGraphics() {
+				return createTestGraphics();
+			}
+		};
+		textArea.setBounds(0, 0, 800, 800);
+		RSyntaxDocument doc = (RSyntaxDocument)textArea.getDocument();
+		doc.setSyntaxStyle(new CustomBracketTokenMaker());
+
+		textArea.setCaretPosition(7); // caret just after '»' at offset 6
+		Point result = RSyntaxUtilities.getMatchingBracketPosition(textArea, null);
+		Assertions.assertEquals(6, result.x); // '»' at offset 6
+		Assertions.assertEquals(0, result.y); // '«' at offset 0
+	}
+
+
+	@Test
+	void testGetMatchingBracketPosition_reuseInputPoint() {
+		RSyntaxTextArea textArea = createTextArea(SyntaxConstants.SYNTAX_STYLE_JAVA, "(hello)");
+		textArea.setCaretPosition(1);
+		Point reuse = new Point();
+		Point result = RSyntaxUtilities.getMatchingBracketPosition(textArea, reuse);
+		Assertions.assertSame(reuse, result);
+		Assertions.assertEquals(0, result.x);
+		Assertions.assertEquals(6, result.y);
+	}
+
+
+	@Test
+	void testRSyntaxDocument_getBracketPairs_defaultPairs() {
+		RSyntaxTextArea textArea = createTextArea();
+		RSyntaxDocument doc = (RSyntaxDocument)textArea.getDocument();
+		Assertions.assertEquals("{}()[]", doc.getBracketPairs());
+	}
+
+
+	/**
+	 * A minimal token maker that tokenizes {@code «»} (and the standard
+	 * bracket characters) as {@link TokenTypes#SEPARATOR} and everything
+	 * else as {@link TokenTypes#IDENTIFIER}.  Used to test custom bracket
+	 * pair support.
+	 */
+	private static final class CustomBracketTokenMaker extends TokenMakerBase {
+
+		private static final String BRACKET_CHARS = "{}()[]" + "«»"; // «»
+
+		@Override
+		public String getBracketPairs() {
+			return BRACKET_CHARS;
+		}
+
+		@Override
+		public boolean getCurlyBracesDenoteCodeBlocks(int languageIndex) {
+			return false;
+		}
+
+		@Override
+		public Token getTokenList(Segment text, int initialTokenType, int startOffset) {
+			resetTokenList();
+			char[] array = text.array;
+			int start = text.offset;
+			int end = start + text.count;
+			for (int i = start; i < end; i++) {
+				char ch = array[i];
+				int type = BRACKET_CHARS.indexOf(ch) >= 0 ?TokenTypes.SEPARATOR : TokenTypes.IDENTIFIER;
+				addToken(array, i, i, type, startOffset + (i - start));
+			}
+			addNullToken();
+			return firstToken;
+		}
+	}
+}

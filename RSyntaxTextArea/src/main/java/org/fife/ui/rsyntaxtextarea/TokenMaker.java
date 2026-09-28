@@ -1,0 +1,238 @@
+/*
+ * 02/24/2004
+ *
+ * TokenMaker.java - An object that can take a chunk of text and return a
+ * linked list of <code>Token</code>s representing it.
+ *
+ * This library is distributed under a modified BSD license.  See the included
+ * LICENSE file for details.
+ */
+package org.fife.ui.rsyntaxtextarea;
+
+import javax.swing.Action;
+import javax.swing.text.Segment;
+
+
+/**
+ * An implementation of <code>TokenMaker</code> is a class that turns text into
+ * a linked list of <code>Token</code>s for syntax highlighting
+ * in a particular language.
+ *
+ * @see Token
+ * @see AbstractTokenMaker
+ *
+ * @author Robert Futrell
+ * @version 0.2
+ */
+public interface TokenMaker {
+
+
+	/**
+	 * Adds a null token to the end of the current linked list of tokens.
+	 * This should be put at the end of the linked list whenever the last
+	 * token on the current line is NOT a multi-line token.
+	 */
+	void addNullToken();
+
+
+	/**
+	 * Adds the token specified to the current linked list of tokens.
+	 *
+	 * @param array The character array from which to get the text.
+	 * @param start Start offset in <code>segment</code> of token.
+	 * @param end End offset in <code>segment</code> of token.
+	 * @param tokenType The token's type.
+	 * @param startOffset The offset in the document at which this token
+	 *        occurs.
+	 */
+	void addToken(char[] array, int start, int end, int tokenType,
+				  int startOffset);
+
+
+	/**
+	 * Returns the closest {@link TokenTypes "standard" token type} for a given
+	 * "internal" token type (e.g. one whose value is <code>&lt; 0</code>).
+	 *
+	 * @param type The token type.
+	 * @return The closest "standard" token type.  If a mapping is not defined
+	 *         for this language, then <code>type</code> is returned. The default
+	 *         implementation returns <code>type</code> always.
+	 */
+	default int getClosestStandardTokenTypeForInternalType(int type) {
+		return type;
+	}
+
+
+	/**
+	 * Returns whether this programming language uses curly braces
+	 * ('<code>{</code>' and '<code>}</code>') to denote code blocks.
+	 *
+	 * @param languageIndex The language index at the offset in question.
+	 *        Since some <code>TokenMaker</code>s effectively have nested
+	 *        languages (such as JavaScript in HTML), this parameter tells the
+	 *        <code>TokenMaker</code> what sub-language to look at.
+	 * @return Whether curly braces denote code blocks. The default
+	 *         implementation returns <code>false</code>.
+	 */
+	default boolean getCurlyBracesDenoteCodeBlocks(int languageIndex) {
+		return false;
+	}
+
+
+	/**
+	 * Returns the last token on this line's type if the token is "unfinished",
+	 * or {@link TokenTypes#NULL} if it was finished.  For example, if C-style
+	 * syntax highlighting is being implemented, and <code>text</code>
+	 * contained a line of code that contained the beginning of a comment but
+	 * no end-comment marker ("*\/"), then this method would return
+	 * {@link TokenTypes#COMMENT_MULTILINE} for that line.  This is useful
+	 * for doing syntax highlighting.
+	 *
+	 * @param text The line of tokens to examine.
+	 * @param initialTokenType The token type to start with (i.e., the value
+	 *        of <code>getLastTokenTypeOnLine</code> for the line before
+	 *        <code>text</code>).
+	 * @return The last token on this line's type, or {@link TokenTypes#NULL}
+	 *         if the line was completed.
+	 */
+	default int getLastTokenTypeOnLine(Segment text, int initialTokenType) {
+		Token t = getTokenList(text, initialTokenType, 0);
+		while (t.getNextToken() != null) {
+			t = t.getNextToken();
+		}
+		return t.getType();
+	}
+
+
+	/**
+	 * Returns the text to place at the beginning and end of a
+	 * line to "comment" it in this programming language.
+	 *
+	 * @param languageIndex The language index at the offset in question.
+	 *        Since some <code>TokenMaker</code>s effectively have nested
+	 *        languages (such as JavaScript in HTML), this parameter tells the
+	 *        <code>TokenMaker</code> what sub-language to look at.
+	 * @return The start and end strings to add to a line to "comment"
+	 *         it out.  A <code>null</code> value for either means there
+	 *         is no string to add for that part.  A value of
+	 *         <code>null</code> for the array means this language
+	 *         does not support commenting/uncommenting lines. The default
+	 *         implementation returns <code>null</code>.
+	 */
+	default String[] getLineCommentStartAndEnd(int languageIndex) {
+		return null;
+	}
+
+
+	/**
+	 * Returns an action to handle "insert break" key presses (i.e. Enter).
+	 *
+	 * @return The action, or <code>null</code> if the default action should
+	 *         be used. The default implementation returns <code>null</code>.
+	 */
+	default Action getInsertBreakAction() {
+		return null;
+	}
+
+
+	/**
+	 * Returns whether tokens of the specified type should have "mark
+	 * occurrences" enabled for the current programming language.
+	 *
+	 * @param type The token type.
+	 * @return Whether tokens of this type should have "mark occurrences"
+	 *         enabled. The default implementation returns true only if
+	 *         the token type is <code>TokenTypes.IDENTIFIER</code>.
+	 */
+	default boolean getMarkOccurrencesOfTokenType(int type) {
+		return type == TokenTypes.IDENTIFIER;
+	}
+
+
+	/**
+	 * Returns the object in charge of marking all occurrences of the token
+	 * at the current caret position, if it is a relevant token.  If
+	 * <code>null</code> is returned, a default <code>OccurrenceMarker</code>
+	 * is used.
+	 *
+	 * @return The occurrence marker for this language, or <code>null</code>
+	 *         for none. The default implementation returns <code>null</code>.
+	 */
+	OccurrenceMarker getOccurrenceMarker();
+
+
+	/**
+	 * If a line ends in the specified token, this method returns whether
+	 * a new line inserted after that line should be indented.
+	 *
+	 * @param token The token the previous line ends with.
+	 * @return Whether the next line should be indented. The default implementation
+	 *         returns {@code false}.
+	 */
+	default boolean getShouldIndentNextLineAfter(Token token) {
+		return false;
+	}
+
+
+	/**
+	 * Returns the first token in the linked list of tokens generated
+	 * from <code>text</code>.  This method must be implemented by
+	 * subclasses so they can correctly implement syntax highlighting.
+	 *
+	 * @param text The text from which to get tokens.
+	 * @param initialTokenType The token type we should start with.
+	 * @param startOffset The offset into the document at which
+	 *        <code>text</code> starts.
+	 * @return The first <code>Token</code> in a linked list representing
+	 *         the syntax highlighted text.
+	 */
+	Token getTokenList(Segment text, int initialTokenType,
+					   int startOffset);
+
+
+	/**
+	 * Returns whether a character could be part of an "identifier" token
+	 * in a specific language.  This is used to identify such things as the
+	 * bounds of the "word" to select on double-clicking.
+	 *
+	 * @param languageIndex The language index the character was found in.
+	 * @param ch The character.
+	 * @return Whether the character could be part of an "identifier" token.
+	 */
+	default boolean isIdentifierChar(int languageIndex, char ch) {
+		return Character.isLetterOrDigit(ch) || ch == '_' || ch == '$';
+	}
+
+
+	/**
+	 * Returns the bracket pairs for this language, as a string of consecutive
+	 * character pairs where each even-indexed character is an opening bracket
+	 * and each following odd-indexed character is its closing counterpart.  For
+	 * example, {@code "{}()[]"} defines three pairs.
+	 * <p>
+	 * Characters in this list must be tokenized as {@link TokenTypes#SEPARATOR}
+	 * for bracket matching to work.
+	 * <p>
+	 * The default implementation returns {@code ""} (no bracket matching).
+	 * Override this method to enable bracket matching for a specific language.
+	 *
+	 * @return The bracket pairs string.
+	 * @see TokenTypes#SEPARATOR
+	 */
+	default String getBracketPairs() {
+		return "";
+	}
+
+
+	/**
+	 * Returns whether this language is a markup language.
+	 *
+	 * @return Whether this language is markup. The default implementation
+	 *         returns {@code false}.
+	 */
+	default boolean isMarkupLanguage() {
+		return false;
+	}
+
+
+}
